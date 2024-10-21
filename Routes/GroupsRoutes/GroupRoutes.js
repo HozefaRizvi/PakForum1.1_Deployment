@@ -212,26 +212,26 @@ router.delete('/leave-group/:groupId', async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 });
-router.get('/check-group-status/:groupId', async (req, res) => {
-    const { userEmail } = req.body; 
-    const groupId = req.params.groupId;
+router.post('/check-group-status/:groupId', async (req, res) => {
+    const { userEmail } = req.body;  // Retrieve userEmail from the request body
+    const groupId = req.params.groupId;  // Retrieve groupId from the URL parameters
 
     try {
-        const group = await Group.findById(groupId);
+        const group = await Group.findById(groupId);  // Check if the group exists
         if (!group) {
             return res.status(404).json({ message: "Group not found" });
         }
 
-        const user = await User.findOne({ email: userEmail });
+        const user = await User.findOne({ email: userEmail });  // Check if the user exists
         if (!user) {
-            return res.status(404).json({ message: "User  not found" });
+            return res.status(404).json({ message: "User not found" });
         }
 
-        const member = await GroupMember.findOne({ groupId, userId: user._id });
+        const member = await GroupMember.findOne({ groupId, userId: user._id });  // Check if the user is a group member
         if (member) {
-            return res.status(200).json({ message: "User  is a member of the group", status: true });
+            return res.status(200).json({ message: "User is a member of the group", status: true });
         } else {
-            return res.status(200).json({ message: "User  is not a member of the group", status: false });
+            return res.status(200).json({ message: "User is not a member of the group", status: false });
         }
     } catch (error) {
         console.error(error);
