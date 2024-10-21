@@ -6,41 +6,42 @@ const Following = require('../../Models/FollowsListModel/FollowingModel');
 const User = require('../../Models/UserModels');
 const auth = require('../../Middleware/authmidlleware');
 
-// Follow a user
-router.post('/follow', auth, async (req, res) => {
-    const { followingId } = req.body;
+router.post('/follow', async (req, res) => {
+    const { followingId, followerEmail } = req.body;
     try {
         const userToFollow = await User.findById(followingId);
         if (!userToFollow) {
-            return res.status(404).json({ message: "User to follow not found" });
+            return res.status(404).json({ message: "User  to follow not found" });
         }
 
         const alreadyFollowing = await Following.findOne({
             followingId,
-            followerId: req.user.userId
+            followerEmail
         });
 
         if (alreadyFollowing) {
             return res.status(400).json({ message: "You are already following this user" });
         }
-        const follower = await User.findById(req.user.userId);
+
+        const follower = await User.findOne({ email: followerEmail });
         if (!follower) {
             return res.status(404).json({ message: "Follower not found" });
         }
+
         await Follower.create({
-            followerId: req.user.userId,
+            followerId: follower._id,
             followingId,
-            followerName: follower.name, 
-            followerEmail: follower.email,  
-            followerProfilePicUri: follower.profilePicUri  
+            followerName: follower.name,
+            followerEmail: follower.email,
+            followerProfilePicUri: follower.profilePicUri
         });
 
         await Following.create({
             followingId,
-            followerId: req.user.userId,
-            followingName: userToFollow.name,  
-            followingEmail: userToFollow.email,    
-            followingProfilePicUri: userToFollow.profilePicUri  
+            followerId: follower._id,
+            followingName: userToFollow.name,
+            followingEmail: userToFollow.email,
+            followingProfilePicUri: userToFollow.profilePicUri
         });
 
         res.status(201).json({ message: "You are now following this user" });
@@ -49,20 +50,26 @@ router.post('/follow', auth, async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 });
-router.delete('/unfollow', auth, async (req, res) => {
-    const { followingId } = req.body; 
+router.delete('/unfollow', async (req, res) => {
+    const { followingId, followerEmail } = req.body; 
 
     try {
+        const follower = await User.findOne({ email: followerEmail });
+        if (!follower) {
+            return res.status(404).json({ message: "Follower not found" });
+        }
+
         const followRecord = await Follower.findOne({
-            followerId: req.user.userId,
+            followerId: follower._id,
             followingId
         });
 
         if (!followRecord) {
             return res.status(400).json({ message: "You are not following this user" });
         }
-        await Follower.deleteOne({ followerId: req.user.userId, followingId });
-        await Following.deleteOne({ followingId, followerId: req.user.userId });
+
+        await Follower.deleteOne({ followerId: follower._id, followingId });
+        await Following.deleteOne({ followingId, followerId: follower._id });
         res.status(200).json({ message: "You have unfollowed this user" });
     } catch (error) {
         console.error(error);
@@ -93,11 +100,18 @@ router.get('/:userId/following', async (req, res) => {
     }
 });
 
-router.get('/isFollowing/:followingId', auth, async (req, res) => {
+router.get('/isFollowing/:followingId', async (req, res) => {
     const { followingId } = req.params;
+    const { followerEmail } = req.body;
+
     try {
+        const follower = await User.findOne({ email: followerEmail });
+        if (!follower) {
+            return res.status(404).json({ message: "Follower not found" });
+        }
+
         const isFollowing = await Following.findOne({
-            followerId: req.user.userId,
+            followerId: follower._id,
             followingId
         });
 

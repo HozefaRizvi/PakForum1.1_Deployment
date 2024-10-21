@@ -5,26 +5,24 @@ const User = require('../../Models/UserModels');
 const GroupMember = require("../../Models/GroupModels/GroupMembers_Model")
 const mongoose = require('mongoose');
 const router = express.Router();
-// Route to create a new group
-router.post('/create-group', auth, async (req, res) => {
-    const { groupName, groupDescription, groupPhoto, groupPrivate } = req.body;
-
+router.post('/create-group', async (req, res) => {
+    const { groupName, groupDescription, groupPhoto, groupPrivate, userEmail } = req.body; 
     try {
-        const user = await User.findById(req.user.userId);
+        const user = await User.findOne({ email: userEmail });
         if (!user) {
-            return res.status(404).json({ message: "User not found" });
+            return res.status(404).json({ message: "User  not found" });
         }
-        const existingGroup = await Group.findOne({ groupName, createdBy: req.user.userId });
+        const existingGroup = await Group.findOne({ groupName, createdBy: user._id });
         if (existingGroup) {
             return res.status(400).json({ message: "You already have a group with this name." });
         }
         const newGroup = new Group({
-            groupId: new mongoose.Types.ObjectId().toString(), 
+            groupId: new mongoose.Types.ObjectId().toString(),
             groupName,
             groupDescription,
             groupPhoto,
             groupPrivate,
-            createdBy: req.user.userId
+            createdBy: user._id 
         });
         await newGroup.save();
         res.status(201).json({ message: "Group created successfully", groupId: newGroup._id });
@@ -60,8 +58,8 @@ router.get("/show_all_groups", async (req, res) => {
     }
 });
 
-router.post('/add-member/:groupId', auth, async (req, res) => {
-    const { userId } = req.body; 
+router.post('/add-member/:groupId', async (req, res) => {
+    const { userEmail } = req.body; 
     const groupId = req.params.groupId;
 
     try {
@@ -69,19 +67,21 @@ router.post('/add-member/:groupId', auth, async (req, res) => {
         if (!group) {
             return res.status(404).json({ message: "Group not found" });
         }
-        const existingMember = await GroupMember.findOne({ groupId, userId });
+
+        const existingMember = await GroupMember.findOne({ groupId, email: userEmail });
         if (existingMember) {
-            return res.status(400).json({ message: "User is already a member of the group" });
+            return res.status(400).json({ message: "User  is already a member of the group" });
         }
-        const user = await User.findById(userId);
+        const user = await User.findOne({ email: userEmail });
         if (!user) {
-            return res.status(404).json({ message: "User not found" });
+            return res.status(404).json({ message: "User  not found" });
         }
+
         const newMember = new GroupMember({
             groupId,
-            userId,
-            name: user.name,  
-            profilePicUri: user.profilePicUri 
+            userId: user._id, 
+            name: user.name,
+            profilePicUri: user.profilePicUri
         });
         await newMember.save();
         res.status(201).json({ message: "Member added successfully", member: newMember });
@@ -154,7 +154,8 @@ router.get('/show-specific-group/:groupId', async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 });
-router.post('/join-group/:groupId', auth, async (req, res) => {
+router.post('/join-group/:groupId', async (req, res) => {
+    const { userEmail } = req.body; 
     const groupId = req.params.groupId;
 
     try {
@@ -162,22 +163,19 @@ router.post('/join-group/:groupId', auth, async (req, res) => {
         if (!group) {
             return res.status(404).json({ message: "Group not found" });
         }
+        const user = await User.findOne({ email: userEmail });
+        if (!user) {
+            return res.status(404).json({ message: "User  not found" });
+        }
 
-        // Check if the user is already a member of the group
-        const existingMember = await GroupMember.findOne({ groupId, userId: req.user.userId });
+        const existingMember = await GroupMember.findOne({ groupId, userId: user._id });
         if (existingMember) {
             return res.status(400).json({ message: "You are already a member of this group" });
         }
 
-        // Add the user as a member of the group
-        const user = await User.findById(req.user.userId);
-        if (!user) {
-            return res.status(404).json({ message: "User not found" });
-        }
-
         const newMember = new GroupMember({
             groupId,
-            userId: req.user.userId,
+            userId: user._id,
             name: user.name,
             profilePicUri: user.profilePicUri
         });
@@ -188,7 +186,8 @@ router.post('/join-group/:groupId', auth, async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 });
-router.delete('/leave-group/:groupId', auth, async (req, res) => {
+router.delete('/leave-group/:groupId', async (req, res) => {
+    const { userEmail } = req.body;
     const groupId = req.params.groupId;
 
     try {
@@ -196,7 +195,13 @@ router.delete('/leave-group/:groupId', auth, async (req, res) => {
         if (!group) {
             return res.status(404).json({ message: "Group not found" });
         }
-        const member = await GroupMember.findOneAndDelete({ groupId, userId: req.user.userId });
+
+        const user = await User.findOne({ email: userEmail });
+        if (!user) {
+            return res.status(404).json({ message: "User  not found" });
+        }
+
+        const member = await GroupMember.findOneAndDelete({ groupId, userId: user._id });
         if (!member) {
             return res.status(404).json({ message: "You are not a member of this group" });
         }
@@ -207,20 +212,26 @@ router.delete('/leave-group/:groupId', auth, async (req, res) => {
         res.status(500).json({ message: "Server error" });
     }
 });
-router.get('/check-group-status/:groupId', auth, async (req, res) => {
+router.get('/check-group-status/:groupId', async (req, res) => {
+    const { userEmail } = req.body; 
     const groupId = req.params.groupId;
 
     try {
         const group = await Group.findById(groupId);
         if (!group) {
             return res.status(404).json({ message: "Group not found" });
-            console.log(res)
         }
-        const member = await GroupMember.findOne({ groupId, userId: req.user.userId });
+
+        const user = await User.findOne({ email: userEmail });
+        if (!user) {
+            return res.status(404).json({ message: "User  not found" });
+        }
+
+        const member = await GroupMember.findOne({ groupId, userId: user._id });
         if (member) {
-            return res.status(200).json({ message: "User is a member of the group", status: true });
+            return res.status(200).json({ message: "User  is a member of the group", status: true });
         } else {
-            return res.status(200).json({ message: "User is not a member of the group", status: false });
+            return res.status(200).json({ message: "User  is not a member of the group", status: false });
         }
     } catch (error) {
         console.error(error);
