@@ -100,7 +100,7 @@ router.get('/:userId/following', async (req, res) => {
     }
 });
 
-router.get('/isFollowing/:followingId', async (req, res) => {
+router.post('/isFollowing/:followingId', async (req, res) => {
     const { followingId } = req.params;
     const { followerEmail } = req.body;
 
